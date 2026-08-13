@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const pool = require("../config/db");
 
 // Kolom yang aman ditampilkan ke client (password TIDAK pernah dikirim balik)
@@ -30,10 +31,15 @@ exports.createUser = async (req, res) => {
     // Hash password sebelum disimpan (jangan pernah simpan plain text)
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [result] = await pool.query(
-      `INSERT INTO users (name, email, password, role, photo_url, coins, streak_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    // id sekarang UUID string (bukan AUTO_INCREMENT), konsisten dengan
+    // user_id di tabel user_course_progress.
+    const id = crypto.randomUUID();
+
+    await pool.query(
+      `INSERT INTO users (id, name, email, password, role, photo_url, coins, streak_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        id,
         name,
         email,
         hashedPassword,
@@ -46,7 +52,7 @@ exports.createUser = async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT ${SAFE_COLUMNS} FROM users WHERE id = ?`,
-      [result.insertId]
+      [id]
     );
 
     return res.status(201).json({ success: true, data: rows[0] });

@@ -1,0 +1,17 @@
+const express = require("express");
+const router = express.Router();
+const {
+  createModule,
+  getModules,
+  getModuleById,
+  updateModule,
+  deleteModule,
+} = require("../controllers/moduleController");
+
+router.post("/", createModule); // CREATE
+router.get("/", getModules); // READ ALL (bisa filter ?course_id=)
+router.get("/:id", getModuleById); // READ ONE
+router.put("/:id", updateModule); // UPDATE
+router.delete("/:id", deleteModule); // DELETE
+
+module.exports = router;
