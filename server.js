@@ -6,6 +6,7 @@ const courseRoutes = require("./routes/courseRoutes");
 const moduleRoutes = require("./routes/moduleRoutes");
 const videoRoutes = require("./routes/videoRoutes");
 const quizRoutes = require("./routes/quizRoutes");
+const progressRoutes = require("./routes/progressRoutes");
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/modules", moduleRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/quizzes", quizRoutes);
+app.use("/api/progress", progressRoutes);
 
 // Middleware sederhana untuk route yang tidak ditemukan
 app.use((req, res) => {
