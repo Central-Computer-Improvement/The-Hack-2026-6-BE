@@ -25,7 +25,16 @@ async function apiRequest(endpoint, options = {}) {
     const data = await res.json().catch(() => null);
 
     if (!res.ok) {
-      const errorMsg = data?.detail || data?.message || `DeepTutor request failed with status ${res.status}`;
+      let errorMsg = `DeepTutor request failed with status ${res.status}`;
+      if (typeof data?.detail === "string") {
+        errorMsg = data.detail;
+      } else if (Array.isArray(data?.detail)) {
+        errorMsg = data.detail
+          .map((d) => (d.msg ? `${d.loc ? d.loc.slice(-1)[0] + ": " : ""}${d.msg}` : JSON.stringify(d)))
+          .join("; ");
+      } else if (data?.message) {
+        errorMsg = data.message;
+      }
       const err = new Error(errorMsg);
       err.status = res.status;
       err.data = data;
@@ -108,15 +117,76 @@ exports.listKnowledgeBases = async () => {
   return apiRequest("/knowledge/list", { method: "GET" });
 };
 
-exports.createKnowledgeBase = async (kb_name) => {
-  return apiRequest("/knowledge/create", {
-    method: "POST",
-    body: JSON.stringify({ kb_name }),
-  });
+exports.createKnowledgeBase = async (kb_name, file = null) => {
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}/knowledge/create`;
+
+  const form = new FormData();
+  form.append("name", kb_name);
+
+  if (file && file.buffer) {
+    form.append("files", file.buffer, {
+      filename: file.originalname || `${kb_name}.txt`,
+      contentType: file.mimetype || "text/plain",
+      knownLength: file.size || file.buffer.length,
+    });
+  } else {
+    // DeepTutor requires at least one initial document to initialize the KB index
+    const initialDoc = Buffer.from(
+      `# Knowledge Base: ${kb_name}\n\nInitialized on ${new Date().toISOString()}`
+    );
+    form.append("files", initialDoc, {
+      filename: "README.md",
+      contentType: "text/plain",
+      knownLength: initialDoc.length,
+    });
+  }
+
+  const headers = {
+    ...form.getHeaders(),
+  };
+  const token = process.env.DEEPTUTOR_AUTH_TOKEN;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: form,
+      duplex: "half",
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      let errorMsg = data?.detail;
+      if (Array.isArray(errorMsg)) {
+        errorMsg = errorMsg
+          .map((d) => (d.msg ? `${d.loc ? d.loc.slice(-1)[0] + ": " : ""}${d.msg}` : JSON.stringify(d)))
+          .join("; ");
+      } else if (typeof errorMsg !== "string") {
+        errorMsg = data?.message || `DeepTutor create failed with status ${res.status}`;
+      }
+      const err = new Error(errorMsg);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  } catch (err) {
+    if (err.cause?.code === "ECONNREFUSED" || err.code === "ECONNREFUSED") {
+      const connErr = new Error(
+        "DeepTutor AI microservice is not reachable at " + baseUrl
+      );
+      connErr.status = 503;
+      throw connErr;
+    }
+    throw err;
+  }
 };
 
 exports.deleteKnowledgeBase = async (kb_name) => {
-  return apiRequest(`/knowledge/${kb_name}`, { method: "DELETE" });
+  return apiRequest(`/knowledge/${encodeURIComponent(kb_name)}`, { method: "DELETE" });
 };
 
 /**
@@ -126,7 +196,7 @@ exports.deleteKnowledgeBase = async (kb_name) => {
  */
 exports.uploadDocument = async (kb_name, file) => {
   const baseUrl = getBaseUrl();
-  const url = `${baseUrl}/knowledge/${encodeURIComponent(kb_name)}/documents/upload`;
+  const url = `${baseUrl}/knowledge/${encodeURIComponent(kb_name)}/upload`;
 
   const form = new FormData();
   form.append("files", file.buffer, {
@@ -152,9 +222,15 @@ exports.uploadDocument = async (kb_name, file) => {
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      const err = new Error(
-        data?.detail || data?.message || `DeepTutor upload failed: ${res.status}`
-      );
+      let errorMsg = data?.detail;
+      if (Array.isArray(errorMsg)) {
+        errorMsg = errorMsg
+          .map((d) => (d.msg ? `${d.loc ? d.loc.slice(-1)[0] + ": " : ""}${d.msg}` : JSON.stringify(d)))
+          .join("; ");
+      } else if (typeof errorMsg !== "string") {
+        errorMsg = data?.message || `DeepTutor upload failed: ${res.status}`;
+      }
+      const err = new Error(errorMsg);
       err.status = res.status;
       err.data = data;
       throw err;

@@ -44,7 +44,7 @@ exports.listKnowledgeBases = async (req, res) => {
 // ============================================================
 exports.createKnowledgeBase = async (req, res) => {
   try {
-    const { kb_name } = req.body;
+    const kb_name = req.body?.kb_name || req.body?.name;
     if (!kb_name || typeof kb_name !== "string" || !kb_name.trim()) {
       return res.status(400).json({
         success: false,
@@ -52,7 +52,7 @@ exports.createKnowledgeBase = async (req, res) => {
       });
     }
 
-    const data = await deepTutorService.createKnowledgeBase(kb_name.trim());
+    const data = await deepTutorService.createKnowledgeBase(kb_name.trim(), req.file);
     return res.status(201).json({ success: true, data });
   } catch (err) {
     console.error("createKnowledgeBase error:", err);
