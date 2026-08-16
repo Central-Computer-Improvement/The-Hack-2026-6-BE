@@ -157,3 +157,125 @@ exports.deleteModule = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ============================================================
+// COMPLETE MODULE MILESTONE - POST /api/modules/:id/complete or POST /api/modules/complete
+// ============================================================
+exports.completeModuleMilestone = async (req, res) => {
+  try {
+    const moduleId = req.params.id || req.body.module_id;
+    const {
+      user_id,
+      course_id: explicitCourseId,
+      learned_concepts,
+      misconceptions,
+      essay_feedback,
+    } = req.body;
+
+    if (!moduleId) {
+      return res.status(400).json({
+        success: false,
+        message: "module_id wajib diisi",
+      });
+    }
+
+    const [moduleRows] = await pool.query(
+      `SELECT * FROM modules WHERE id = ?`,
+      [moduleId]
+    );
+
+    if (moduleRows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Module tidak ditemukan" });
+    }
+
+    const moduleData = moduleRows[0];
+    const courseId = explicitCourseId || moduleData.course_id;
+
+    // Kumpulkan concepts dari video jika tidak dikirim
+    let conceptsList = learned_concepts || [];
+    if (!learned_concepts || !learned_concepts.length) {
+      const [videos] = await pool.query(
+        `SELECT kb_concepts FROM videos WHERE module_id = ?`,
+        [moduleId]
+      );
+      for (const v of videos) {
+        if (v.kb_concepts) {
+          try {
+            const parsed = typeof v.kb_concepts === "string" ? JSON.parse(v.kb_concepts) : v.kb_concepts;
+            if (Array.isArray(parsed)) {
+              conceptsList.push(...parsed);
+            }
+          } catch {}
+        }
+      }
+    }
+
+    // Panggil DeepTutor Microservice
+    let aiTraceResult = null;
+    try {
+      const deepTutorService = require("../services/deepTutorService");
+      aiTraceResult = await deepTutorService.completeModule(courseId, moduleId, {
+        module_title: moduleData.title,
+        learned_concepts: conceptsList,
+        misconceptions: misconceptions || [],
+        essay_feedback: essay_feedback || "Module completion milestone recorded.",
+      });
+    } catch (aiErr) {
+      console.warn("DeepTutor complete_module call failed (fallback ignored):", aiErr.message);
+      aiTraceResult = { status: "local_only", message: aiErr.message };
+    }
+
+    // Update / insert user_course_progress di database
+    let progressData = null;
+    if (user_id) {
+      const [existingProgress] = await pool.query(
+        `SELECT * FROM user_course_progress 
+         WHERE user_id = ? AND course_id = ? AND module_id = ? 
+         ORDER BY id DESC LIMIT 1`,
+        [user_id, courseId, moduleId]
+      );
+
+      const completedAt = new Date();
+      if (existingProgress.length > 0) {
+        await pool.query(
+          `UPDATE user_course_progress 
+           SET status = 'completed', completed_at = ? 
+           WHERE id = ?`,
+          [completedAt, existingProgress[0].id]
+        );
+        progressData = {
+          id: existingProgress[0].id,
+          status: "completed",
+          completed_at: completedAt,
+        };
+      } else {
+        const [insertRes] = await pool.query(
+          `INSERT INTO user_course_progress (user_id, course_id, module_id, status, completed_at)
+           VALUES (?, ?, ?, 'completed', ?)`,
+          [user_id, courseId, moduleId, completedAt]
+        );
+        progressData = {
+          id: insertRes.insertId,
+          status: "completed",
+          completed_at: completedAt,
+        };
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Module "${moduleData.title}" marked as completed`,
+      data: {
+        module_id: moduleId,
+        course_id: courseId,
+        ai_trace: aiTraceResult,
+        progress: progressData,
+      },
+    });
+  } catch (err) {
+    console.error("completeModuleMilestone error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};

@@ -130,3 +130,45 @@ exports.deleteCourse = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ============================================================
+// RESET COURSE SESSION - POST /api/courses/:id/reset
+// ============================================================
+exports.resetCourseSession = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.body;
+
+    const [existing] = await pool.query(`SELECT id FROM courses WHERE id = ?`, [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ success: false, message: "Course tidak ditemukan" });
+    }
+
+    // Call DeepTutor reset
+    let aiResetRes = null;
+    try {
+      const deepTutorService = require("../services/deepTutorService");
+      aiResetRes = await deepTutorService.resetCourse(id);
+    } catch (aiErr) {
+      console.warn("DeepTutor course reset warning:", aiErr.message);
+      aiResetRes = { status: "local_only", message: aiErr.message };
+    }
+
+    // Optionally reset user_course_progress for this course
+    if (user_id) {
+      await pool.query(
+        `DELETE FROM user_course_progress WHERE user_id = ? AND course_id = ?`,
+        [user_id, id]
+      );
+    }
+
+    return res.json({
+      success: true,
+      message: `Course session ${id} reset successfully`,
+      ai_result: aiResetRes,
+    });
+  } catch (err) {
+    console.error("resetCourseSession error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
