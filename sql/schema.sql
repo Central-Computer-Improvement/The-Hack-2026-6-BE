@@ -85,3 +85,9 @@ CREATE TABLE IF NOT EXISTS user_course_progress (
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+--untuk auth akun google
+ALTER TABLE users
+  MODIFY password VARCHAR(255) NULL,              -- boleh kosong buat akun Google
+  ADD COLUMN google_id VARCHAR(255) NULL UNIQUE,   -- ID unik dari Google (field "sub")
+  ADD COLUMN auth_provider ENUM('local','google') NOT NULL DEFAULT 'local';

@@ -11,6 +11,7 @@ const roadmapRoutes = require("./routes/roadmapRoutes");
 const knowledgeRoutes = require("./routes/knowledgeRoutes");
 const aiSettingsRoutes = require("./routes/aiSettingsRoutes");
 const { attachChatProxy } = require("./services/chatProxy");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/progress", progressRoutes);
 app.use("/api/roadmap", roadmapRoutes);
 app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/ai", aiSettingsRoutes);
+app.use("/api/auth", authRoutes);
 
 // Middleware sederhana untuk route yang tidak ditemukan
 app.use((req, res) => {
@@ -46,4 +48,4 @@ const httpServer = app.listen(PORT, () => {
 // Attach WebSocket chat proxy on ws://localhost:<PORT>/api/chat/ws
 // Proxies transparently to DeepTutor at DEEPTUTOR_WS_URL
 attachChatProxy(httpServer);
-
+
