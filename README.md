@@ -99,11 +99,50 @@ The-Hack-2026-6-BE/
 |---|---|---|
 | **Node.js (v18+)** | Runtime JavaScript backend | [nodejs.org](https://nodejs.org) |
 | **MySQL / XAMPP** | Database server lokal | [apachefriends.org](https://www.apachefriends.org) |
-| **Python (v3.10+)** | *(Opsional)* Jika menjalankan DeepTutor AI lokal | [python.org](https://www.python.org) |
+| **Python (v3.11+)** | **(Wajib / Required)** Untuk menjalankan DeepTutor AI Microservice | [python.org](https://www.python.org) |
 
 ---
 
-### 2. Setup Database MySQL
+### 2. Menjalankan DeepTutor AI Microservice (Wajib / AI Engine)
+
+Layanan DeepTutor AI Microservice **wajib** dijalankan pada port 8001 untuk menyediakan fitur Socratic AI Tutor, evaluasi kuis adaptif, roadmap generator, dan RAG Knowledge Base:
+1. Buat Virtual Environment Python
+```bash
+py -m venv .venv
+```
+
+2. Aktivasi Virtual Environment
+```bash
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
+```
+
+3. Masuk ke direktori DeepTutor-main
+```bash
+cd DeepTutor-main
+```
+
+
+4. Install DeepTutor dan dependencies:
+```bash
+pip install -e .
+```
+
+5. Inisialisasi DeepTutor:
+```bash
+deeptutor init
+```
+
+6. Jalankan DeepTutor (Port 8001):
+```bash
+deeptutor serve --port 8001
+```
+
+---
+
+### 3. Setup Database MySQL
 
 1. Jalankan **MySQL** dari **XAMPP Control Panel** (atau MySQL Service lokal).
 2. Buka **phpMyAdmin** (`http://localhost/phpmyadmin`) atau MySQL GUI client favorit Anda (DBeaver/HeidiSQL).
@@ -119,7 +158,7 @@ Skema akan membuat database `auralearn_db` dan tabel-tabel berikut:
 
 ---
 
-### 3. Konfigurasi Environment (`.env`)
+### 4. Konfigurasi Environment (`.env`)
 
 Duplikat file `.env.example` menjadi `.env`, kemudian sesuaikan konfigurasinya:
 
@@ -134,7 +173,7 @@ DB_NAME=auralearn_db
 # Express Server configuration
 PORT=5000
 
-# Google OAuth (Opsional - untuk verifikasi Google Sign-In)
+# Google OAuth (Wajib untuk verifikasi Google Sign-In)
 GOOGLE_CLIENT_ID=
 
 # DeepTutor AI Microservice configuration
@@ -145,7 +184,7 @@ DEEPTUTOR_AUTH_TOKEN=
 
 ---
 
-### 4. Install Dependency & Menjalankan Server
+### 5. Install Dependency & Menjalankan Express Server
 
 ```bash
 # Masuk ke direktori backend
@@ -222,6 +261,22 @@ Base URL: `http://localhost:5000`
 | `DELETE` | `/api/courses/:id` | Hapus kursus (cascade modul, video, quiz di dalamnya). |
 | `POST` | `/api/courses/:id/reset` | Reset sesi memori AI kursus & progress siswa (DeepTutor reset). |
 
+#### Contoh Payload Create Course (`POST /api/courses`):
+```json
+{
+  "title": "Algoritma dan Struktur Data",
+  "description": "Kursus fundamental algoritma sorting, searching, dan struktur data untuk pemula."
+}
+```
+
+#### Contoh Payload Update Course (`PUT /api/courses/:id`):
+```json
+{
+  "title": "Algoritma dan Struktur Data - Advanced",
+  "description": "Versi lanjutan dengan topik Dynamic Programming dan Graph."
+}
+```
+
 ---
 
 ### 4. Modul / Modules (`/api/modules`)
@@ -235,6 +290,25 @@ Base URL: `http://localhost:5000`
 | `DELETE` | `/api/modules/:id` | Hapus modul. |
 | `POST` | `/api/modules/:id/complete` | Selesaikan milestone modul & sinkronisasi AI capstone trace. |
 
+#### Contoh Payload Create Module (`POST /api/modules`):
+```json
+{
+  "course_id": "course-uuid-5678",
+  "title": "Sorting Algorithms",
+  "order_index": 1
+}
+```
+
+#### Contoh Payload Complete Module (`POST /api/modules/:id/complete`):
+```json
+{
+  "module_title": "Sorting Algorithms",
+  "learned_concepts": ["Bubble Sort", "Merge Sort", "Quick Sort"],
+  "misconceptions": ["Merge Sort always uses O(n log n) space"],
+  "essay_feedback": "Student demonstrated solid understanding of time complexity trade-offs."
+}
+```
+
 ---
 
 ### 5. Video Materi (`/api/videos`)
@@ -247,6 +321,22 @@ Base URL: `http://localhost:5000`
 | `PUT` | `/api/videos/:id` | Update informasi video. |
 | `DELETE` | `/api/videos/:id` | Hapus video. |
 | `POST` | `/api/videos/:id/track` | Track tontonan video siswa, catat konsep materi ke AI L1 memory trace. |
+
+#### Contoh Payload Create Video (`POST /api/videos`):
+```json
+{
+  "module_id": "module-uuid-1234",
+  "title": "Pengenalan Cost Function J(w,b)",
+  "video_url": "https://www.youtube.com/watch?v=example123",
+  "order_index": 1,
+  "kb_concepts": [
+    {
+      "title": "Cost Function J(w,b)",
+      "description": "Measures mean squared error between model predictions and actual target values."
+    }
+  ]
+}
+```
 
 #### Contoh Payload Video Tracking (`POST /api/videos/:id/track`):
 ```json
@@ -277,6 +367,33 @@ Base URL: `http://localhost:5000`
 }
 ```
 
+#### Contoh Payload Create Quiz MCQ (`POST /api/quizzes`):
+```json
+{
+  "module_id": "module-uuid-1234",
+  "question": "Apa kompleksitas waktu Binary Search?",
+  "question_type": "mcq",
+  "options": ["A) O(n)", "B) O(log n)", "C) O(n^2)", "D) O(1)"],
+  "expected_answer": "B) O(log n)",
+  "misconceptions": {
+    "A) O(n)": "Linear search, bukan binary search.",
+    "C) O(n^2)": "Ini kompleksitas Bubble Sort.",
+    "D) O(1)": "Konstan hanya untuk akses array langsung."
+  }
+}
+```
+
+#### Contoh Payload Create Quiz Essay (`POST /api/quizzes`):
+```json
+{
+  "module_id": "module-uuid-1234",
+  "question": "Jelaskan perbedaan antara Merge Sort dan Quick Sort dari sisi kompleksitas ruang!",
+  "question_type": "essay",
+  "expected_answer": "Merge Sort membutuhkan O(n) memori tambahan sementara Quick Sort bisa in-place dengan O(log n) stack.",
+  "rubric": "Skor penuh jika menyebut O(n) untuk Merge Sort dan O(log n) untuk Quick Sort, beserta alasannya."
+}
+```
+
 ---
 
 ### 7. Progres Belajar (`/api/progress`)
@@ -288,6 +405,25 @@ Base URL: `http://localhost:5000`
 | `GET` | `/api/progress/:id` | Ambil satu record progress. |
 | `PUT` | `/api/progress/:id` | Update status (`not_started`, `in_progress`, `completed`) atau skor. |
 | `DELETE` | `/api/progress/:id` | Hapus data progress. |
+
+#### Contoh Payload Create Progress (`POST /api/progress`):
+```json
+{
+  "user_id": "user-uuid-1234",
+  "course_id": "course-uuid-5678",
+  "module_id": "module-uuid-abcd",
+  "status": "in_progress",
+  "score": null
+}
+```
+
+#### Contoh Payload Update Progress (`PUT /api/progress/:id`):
+```json
+{
+  "status": "completed",
+  "score": 0.85
+}
+```
 
 ---
 
@@ -323,8 +459,24 @@ Base URL: `http://localhost:5000`
 |---|---|---|
 | `GET` | `/api/ai/catalog` | Ambil katalog konfigurasi model LLM, Embedding, & Search. |
 | `PUT` | `/api/ai/catalog` | Update konfigurasi model profile catalog. |
-| `GET` | `/api/ai/memory/:layer/:key` | Inspeksi dokumen memori AI (`L1`, `L2`, `L3`). |
-| `POST` | `/api/ai/memory/:layer/:key/reset` | Reset memori tertentu pada DeepTutor. |
+| `POST` | `/api/ai/memory/consolidate` | Pemicu (*Trigger*) konsolidasi memori 3-layer (`l2/chat`, `l2/quiz`, `l3/recent`, `l3/profile`). |
+| `GET` | `/api/ai/memory/:layer/:interface` | Inspeksi dokumen memori AI (`l2/chat`, `l2/quiz`, `l3/recent`, `l3/profile`). |
+| `POST` | `/api/ai/memory/:layer/:interface/reset` | Reset memori tertentu pada DeepTutor. |
+
+#### Contoh Payload Konsolidasi Memori (`POST /api/ai/memory/consolidate`):
+```json
+{
+  "layer": "l2",
+  "key": "quiz"
+}
+```
+*Atau untuk Layer 3 Profile:*
+```json
+{
+  "layer": "l3",
+  "key": "profile"
+}
+```
 
 ---
 
@@ -339,31 +491,6 @@ Base URL: `http://localhost:5000`
 - `submit_user_reply`: Mengirim jawaban saat AI sedang meminta konfirmasi (`ask_user`).
 - `cancel_turn`: Membatalkan turn yang sedang aktif.
 - `ping`: Heartbeat check (akan dibalas `pong`).
-
----
-
-## 🤖 Menjalankan DeepTutor AI Microservice (Opsional / AI Engine)
-
-Jika Anda ingin menjalankan layanan DeepTutor AI lokal di port `8001`:
-
-```bash
-cd DeepTutor-main
-
-# Buat virtual environment python
-python -m venv .venv
-
-# Aktifkan virtual environment
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
-
-# Install package DeepTutor
-pip install -e .[server]
-
-# Jalankan API server DeepTutor pada port 8001
-deeptutor serve --port 8001
-```
 
 ---
 

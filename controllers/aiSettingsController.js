@@ -59,3 +59,26 @@ exports.resetMemoryDoc = async (req, res) => {
     });
   }
 };
+
+// ============================================================
+// TRIGGER MEMORY CONSOLIDATION (L2 / L3)
+// ============================================================
+exports.consolidateMemory = async (req, res) => {
+  try {
+    const { layer, key, mode, budget } = req.body;
+    if (!layer || !key) {
+      return res.status(400).json({
+        success: false,
+        message: "layer and key are required (e.g., layer: 'l2', key: 'quiz')",
+      });
+    }
+    const data = await deepTutorService.consolidateMemory(layer, key, mode, budget);
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error("consolidateMemory error:", err);
+    return res.status(err.status || 500).json({
+      success: false,
+      message: err.message || "Failed to trigger memory consolidation",
+    });
+  }
+};

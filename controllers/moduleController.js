@@ -193,6 +193,18 @@ exports.completeModuleMilestone = async (req, res) => {
     const moduleData = moduleRows[0];
     const courseId = explicitCourseId || moduleData.course_id;
 
+    // Ambil course title dari database untuk ditampilkan di trace DeepTutor
+    let courseTitle = null;
+    try {
+      const [courseRows] = await pool.query(
+        `SELECT title FROM courses WHERE id = ?`,
+        [courseId]
+      );
+      if (courseRows.length > 0) {
+        courseTitle = courseRows[0].title;
+      }
+    } catch {}
+
     // Kumpulkan concepts dari video jika tidak dikirim
     let conceptsList = learned_concepts || [];
     if (!learned_concepts || !learned_concepts.length) {
@@ -218,6 +230,7 @@ exports.completeModuleMilestone = async (req, res) => {
       const deepTutorService = require("../services/deepTutorService");
       aiTraceResult = await deepTutorService.completeModule(courseId, moduleId, {
         module_title: moduleData.title,
+        course_title: courseTitle || courseId,
         learned_concepts: conceptsList,
         misconceptions: misconceptions || [],
         essay_feedback: essay_feedback || "Module completion milestone recorded.",

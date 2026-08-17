@@ -227,6 +227,18 @@ exports.evaluateQuizSubmission = async (req, res) => {
     const courseId = explicitCourseId || quiz.course_id;
     const misconceptions = parseJsonField(quiz.misconceptions);
 
+    // Ambil course title dari database untuk ditampilkan di trace DeepTutor
+    let courseTitle = null;
+    try {
+      const [courseRows] = await pool.query(
+        `SELECT title FROM courses WHERE id = ?`,
+        [courseId]
+      );
+      if (courseRows.length > 0) {
+        courseTitle = courseRows[0].title;
+      }
+    } catch {}
+
     let evalResult;
     try {
       const deepTutorService = require("../services/deepTutorService");
@@ -237,6 +249,8 @@ exports.evaluateQuizSubmission = async (req, res) => {
         expected_answer: quiz.expected_answer,
         rubric: quiz.rubric,
         misconceptions: misconceptions,
+        question_text: quiz.question,
+        course_title: courseTitle || courseId,
       });
     } catch (aiErr) {
       console.warn("DeepTutor service call failed, using fallback evaluator:", aiErr.message);

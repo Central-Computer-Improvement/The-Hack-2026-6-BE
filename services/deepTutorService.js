@@ -71,6 +71,7 @@ exports.trackVideo = async (courseId, payload) => {
     body: JSON.stringify({
       video_id: payload.video_id,
       title: payload.title,
+      course_title: payload.course_title || null,
       kb_tags: payload.kb_tags || [],
       kb_concepts: payload.kb_concepts || [],
     }),
@@ -87,6 +88,8 @@ exports.evaluateQuiz = async (courseId, payload) => {
       expected_answer: payload.expected_answer || null,
       rubric: payload.rubric || null,
       misconceptions: payload.misconceptions || null,
+      question_text: payload.question_text || null,
+      course_title: payload.course_title || null,
     }),
   });
 };
@@ -97,6 +100,7 @@ exports.completeModule = async (courseId, moduleId, payload) => {
     body: JSON.stringify({
       module_id: moduleId,
       module_title: payload.module_title,
+      course_title: payload.course_title || null,
       learned_concepts: payload.learned_concepts || [],
       misconceptions: payload.misconceptions || [],
       essay_feedback: payload.essay_feedback || "",
@@ -268,4 +272,17 @@ exports.getMemoryDoc = async (layer, key) => {
 
 exports.resetMemoryDoc = async (layer, key) => {
   return apiRequest(`/memory/doc/${layer}/${key}/reset`, { method: "POST" });
+};
+
+exports.consolidateMemory = async (layer, key, mode = "update", budget = null) => {
+  const defaultBudget = String(layer).toLowerCase() === "l3" ? 10 : 20;
+  return apiRequest("/memory/runs/start", {
+    method: "POST",
+    body: JSON.stringify({
+      layer,
+      key,
+      mode: mode || "update",
+      budget: budget || defaultBudget,
+    }),
+  });
 };

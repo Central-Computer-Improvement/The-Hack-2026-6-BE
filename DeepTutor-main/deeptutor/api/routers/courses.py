@@ -36,6 +36,7 @@ async def _save_narrative_to_session(course_id: str, narrative_text: str):
 class TrackVideoRequest(BaseModel):
     video_id: str
     title: str
+    course_title: Optional[str] = None
     kb_tags: List[str] = []
     kb_concepts: List[Dict[str, str]] = []
 
@@ -47,11 +48,14 @@ class EvaluateQuizRequest(BaseModel):
     expected_answer: Optional[str] = None
     rubric: Optional[str] = None
     misconceptions: Optional[Dict[str, str]] = None
+    question_text: Optional[str] = None
+    course_title: Optional[str] = None
 
 
 class CompleteModuleRequest(BaseModel):
     module_id: Optional[str] = None
     module_title: str
+    course_title: Optional[str] = None
     learned_concepts: List[Dict[str, str]] = []
     misconceptions: List[str] = []
     essay_feedback: str = ""
@@ -88,9 +92,10 @@ async def track_video(course_id: str, req: TrackVideoRequest):
 
     concepts_str = "\n- ".join(concepts_formatted) if concepts_formatted else "None"
 
+    course_label = req.course_title if req.course_title else course_id
     narrative_text = (
         f"### 📹 Video Lecture Completed: {req.title}\n\n"
-        f"**Course**: `{course_id}` | **Video**: `{req.video_id}`\n\n"
+        f"**Course**: {course_label} | **Video**: {req.title}\n\n"
         f"### 🧠 Mastered Knowledge Base Concepts:\n- {concepts_str}"
     )
     await memory_store.emit(
@@ -166,13 +171,16 @@ async def evaluate_quiz(course_id: str, req: EvaluateQuizRequest):
         if req.misconceptions and given_clean in req.misconceptions:
             misconception_text = req.misconceptions[given_clean]
 
+        q_label = req.question_text or req.question_id
+        course_label = req.course_title or course_id
+
         if given_clean == expected_clean:
             correct = True
             score = 1.0
             feedback = "Correct! Spot on."
             narrative_text = (
-                f"### 🎯 Diagnostic MCQ Check: Question `{req.question_id}`\n\n"
-                f"**Course**: `{course_id}` | **Result**: Correct ✓ (Score: `1.0`)\n\n"
+                f"### 🎯 Diagnostic MCQ Check: {q_label}\n\n"
+                f"**Course**: {course_label} | **Result**: Correct ✓ (Score: `1.0`)\n\n"
                 f"- **Student Choice**: Option `{given_clean}`\n"
                 f"- **Expected Answer**: Option `{expected_clean}`"
             )
@@ -182,8 +190,8 @@ async def evaluate_quiz(course_id: str, req: EvaluateQuizRequest):
             score = 0.0
             feedback = f"Incorrect. The correct answer was Option {expected_clean}."
             narrative_text = (
-                f"### ⚠️ Diagnostic MCQ Check: Question `{req.question_id}`\n\n"
-                f"**Course**: `{course_id}` | **Result**: Incorrect ✗ (Score: `0.0`)\n\n"
+                f"### ⚠️ Diagnostic MCQ Check: {q_label}\n\n"
+                f"**Course**: {course_label} | **Result**: Incorrect ✗ (Score: `0.0`)\n\n"
                 f"- **Student Choice**: Option `{given_clean}`\n"
                 f"- **Expected Answer**: Option `{expected_clean}`\n\n"
                 f"### ⚠️ Identified Misconceptions:\n- *{misconception_text or 'Incorrect option selection'}*"
@@ -244,7 +252,7 @@ async def evaluate_quiz(course_id: str, req: EvaluateQuizRequest):
                 course_sess_id,
                 [{
                     "question_id": req.question_id,
-                    "question": f"Course {course_id} Question {req.question_id}",
+                    "question": req.question_text or f"Course {course_id} Question {req.question_id}",
                     "question_type": req.question_type,
                     "user_answer": given_clean,
                     "correct_answer": expected_clean,
@@ -285,9 +293,11 @@ Return ONLY valid JSON matching this schema:
             correct = score >= 0.7
             feedback = "The student accurately identified that squaring differences prevents negative errors from canceling positive errors."
 
+        essay_q_label = req.question_text or req.question_id
+        essay_course_label = req.course_title or course_id
         narrative_text = (
-            f"### 📝 Reflection Essay Evaluation: Question `{req.question_id}`\n\n"
-            f"**Course**: `{course_id}` | **Result**: {'Passed ✓' if correct else 'Needs Review ✗'} (Score: `{score}`)\n\n"
+            f"### 📝 Reflection Essay Evaluation: {essay_q_label}\n\n"
+            f"**Course**: {essay_course_label} | **Result**: {'Passed ✓' if correct else 'Needs Review ✗'} (Score: `{score}`)\n\n"
             f"### 💬 Student Response:\n> {req.student_answer}\n\n"
             f"### 💬 AI Tutor Capstone Reflection Comment:\n> {feedback}"
         )
@@ -341,7 +351,7 @@ Return ONLY valid JSON matching this schema:
                 course_sess_id,
                 [{
                     "question_id": req.question_id,
-                    "question": f"Course {course_id} Question {req.question_id}",
+                    "question": req.question_text or f"Course {course_id} Question {req.question_id}",
                     "question_type": req.question_type,
                     "user_answer": req.student_answer,
                     "correct_answer": req.expected_answer or "",
@@ -377,9 +387,10 @@ async def complete_module(course_id: str, module_id: str, req: CompleteModuleReq
     concepts_str = "\n- ".join(concepts_list) if concepts_list else "None"
     misconceptions_str = "\n- ".join(f"*{m}*" for m in req.misconceptions) if req.misconceptions else "None encountered"
 
+    course_label = req.course_title if req.course_title else course_id
     narrative_text = (
         f"## 🏆 Module Completion Milestone: {req.module_title}\n\n"
-        f"**Course**: `{course_id}` | **Module**: `{module_id}`\n\n"
+        f"**Course**: {course_label} | **Module**: {req.module_title}\n\n"
         f"### 🧠 Mastered Knowledge Base Concepts:\n- {concepts_str}\n\n"
         f"### ⚠️ Identified Misconceptions Logged:\n- {misconceptions_str}\n\n"
         f"### 💬 AI Tutor Capstone Reflection Comment:\n> {req.essay_feedback}"

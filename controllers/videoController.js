@@ -221,12 +221,25 @@ exports.trackVideoWatch = async (req, res) => {
     const courseId = explicitCourseId || video.course_id;
     const kbConcepts = parseJsonField(video.kb_concepts) || [];
 
+    // Ambil course title dari database untuk ditampilkan di trace DeepTutor
+    let courseTitle = null;
+    try {
+      const [courseRows] = await pool.query(
+        `SELECT title FROM courses WHERE id = ?`,
+        [courseId]
+      );
+      if (courseRows.length > 0) {
+        courseTitle = courseRows[0].title;
+      }
+    } catch {}
+
     let aiTraceResult = null;
     try {
       const deepTutorService = require("../services/deepTutorService");
       aiTraceResult = await deepTutorService.trackVideo(courseId, {
         video_id: video.id,
         title: video.title,
+        course_title: courseTitle || courseId,
         kb_concepts: Array.isArray(kbConcepts) ? kbConcepts : [],
       });
     } catch (aiErr) {
