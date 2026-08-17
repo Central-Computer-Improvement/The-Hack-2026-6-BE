@@ -187,3 +187,106 @@ exports.deleteVideo = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ============================================================
+// TRACK VIDEO WATCH - POST /api/videos/:id/track or POST /api/videos/track
+// ============================================================
+exports.trackVideoWatch = async (req, res) => {
+  try {
+    const videoId = req.params.id || req.body.video_id;
+    const { user_id, course_id: explicitCourseId } = req.body;
+
+    if (!videoId) {
+      return res.status(400).json({
+        success: false,
+        message: "video_id wajib diisi",
+      });
+    }
+
+    const [videoRows] = await pool.query(
+      `SELECT v.*, m.course_id 
+       FROM videos v 
+       JOIN modules m ON v.module_id = m.id 
+       WHERE v.id = ?`,
+      [videoId]
+    );
+
+    if (videoRows.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Video tidak ditemukan" });
+    }
+
+    const video = videoRows[0];
+    const courseId = explicitCourseId || video.course_id;
+    const kbConcepts = parseJsonField(video.kb_concepts) || [];
+
+    // Ambil course title dari database untuk ditampilkan di trace DeepTutor
+    let courseTitle = null;
+    try {
+      const [courseRows] = await pool.query(
+        `SELECT title FROM courses WHERE id = ?`,
+        [courseId]
+      );
+      if (courseRows.length > 0) {
+        courseTitle = courseRows[0].title;
+      }
+    } catch {}
+
+    let aiTraceResult = null;
+    try {
+      const deepTutorService = require("../services/deepTutorService");
+      aiTraceResult = await deepTutorService.trackVideo(courseId, {
+        video_id: video.id,
+        title: video.title,
+        course_title: courseTitle || courseId,
+        kb_concepts: Array.isArray(kbConcepts) ? kbConcepts : [],
+      });
+    } catch (aiErr) {
+      console.warn("DeepTutor track_video call failed (fallback ignored):", aiErr.message);
+      aiTraceResult = { status: "local_only", message: aiErr.message };
+    }
+
+    // Update / insert user progress
+    let progressData = null;
+    if (user_id) {
+      const [existingProgress] = await pool.query(
+        `SELECT * FROM user_course_progress 
+         WHERE user_id = ? AND course_id = ? AND module_id = ? 
+         ORDER BY id DESC LIMIT 1`,
+        [user_id, courseId, video.module_id]
+      );
+
+      if (existingProgress.length > 0) {
+        if (existingProgress[0].status === "not_started") {
+          await pool.query(
+            `UPDATE user_course_progress SET status = 'in_progress' WHERE id = ?`,
+            [existingProgress[0].id]
+          );
+        }
+        progressData = { id: existingProgress[0].id, status: existingProgress[0].status || "in_progress" };
+      } else {
+        const [insertRes] = await pool.query(
+          `INSERT INTO user_course_progress (user_id, course_id, module_id, status, score)
+           VALUES (?, ?, ?, 'in_progress', 0)`,
+          [user_id, courseId, video.module_id]
+        );
+        progressData = { id: insertRes.insertId, status: "in_progress" };
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        video_id: video.id,
+        course_id: courseId,
+        module_id: video.module_id,
+        ai_trace: aiTraceResult,
+        progress: progressData,
+      },
+    });
+  } catch (err) {
+    console.error("trackVideoWatch error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
