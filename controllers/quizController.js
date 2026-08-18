@@ -237,7 +237,7 @@ exports.evaluateQuizSubmission = async (req, res) => {
       if (courseRows.length > 0) {
         courseTitle = courseRows[0].title;
       }
-    } catch {}
+    } catch { }
 
     let evalResult;
     try {
@@ -359,4 +359,4 @@ exports.deleteQuiz = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
+

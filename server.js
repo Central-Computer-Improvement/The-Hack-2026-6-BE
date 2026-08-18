@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 require("dotenv").config();
 
 const userRoutes = require("./routes/userRoutes");
@@ -12,10 +13,15 @@ const knowledgeRoutes = require("./routes/knowledgeRoutes");
 const aiSettingsRoutes = require("./routes/aiSettingsRoutes");
 const { attachChatProxy } = require("./services/chatProxy");
 const authRoutes = require("./routes/authRoutes");
+const userRoadMapRoutes = require('./routes/userRoadMapRoutes');
 
 const app = express();
 
 // Middleware supaya Express bisa baca JSON di request body
+app.use(cors({
+  origin: "http://localhost:3000", // alamat frontend kamu
+  credentials: true,
+}));
 app.use(express.json());
 
 // Route dasar buat cek server hidup
@@ -34,6 +40,7 @@ app.use("/api/roadmap", roadmapRoutes);
 app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/ai", aiSettingsRoutes);
 app.use("/api/auth", authRoutes);
+app.use('/api/roadmaps', userRoadMapRoutes);
 
 // Middleware sederhana untuk route yang tidak ditemukan
 app.use((req, res) => {

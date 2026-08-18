@@ -86,8 +86,24 @@ CREATE TABLE IF NOT EXISTS user_course_progress (
   FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS user_roadmaps (
+  id           VARCHAR(64)  PRIMARY KEY,
+  user_id      VARCHAR(64)  NOT NULL,
+  topic        VARCHAR(255) NOT NULL,
+  title        VARCHAR(255) NOT NULL,
+  summary      TEXT         NULL,
+  steps_json   JSON         NOT NULL,
+  created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 --untuk auth akun google
 ALTER TABLE users
   MODIFY password VARCHAR(255) NULL,              -- boleh kosong buat akun Google
   ADD COLUMN google_id VARCHAR(255) NULL UNIQUE,   -- ID unik dari Google (field "sub")
   ADD COLUMN auth_provider ENUM('local','google') NOT NULL DEFAULT 'local';
+
+--untuk pembatasan 1 sesi login
+ALTER TABLE users
+  ADD COLUMN active_session_id VARCHAR(64) NULL;
